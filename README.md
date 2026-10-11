@@ -59,24 +59,24 @@
 
 ### `search_listings`
 
-- **What it does:**
-- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Filters the 40 listings by price and size, then scores each by keyword overlap with the description: +2 per word found in the title, +1 in the style tags, +1 in the category. Filler words ("looking", "for", "a") are ignored, and a trailing "s" is dropped so "tees" matches "tee". Listings that score 0 are dropped. The description field isn't searched, because non-tees mention "tee" there.
+- **Inputs:** `description` (str), e.g. "vintage graphic tee". `size` (str or None): both sizes are split into pieces on spaces, `/` and parentheses, ignoring case, and a listing matches when it has every piece asked for, so "S" matches "S/M" but not "US 9". One Size listings always match. None skips the filter. `max_price` (float or None): dollars, inclusive. None skips the filter.
+- **Returns:** `list[dict]`, at most 10 listing dicts (`config.SEARCH_RESULT_LIMIT`), highest score first, cheapest first on a tie. Each dict has `id`, `title`, `description`, `category`, `style_tags` (list), `size`, `condition`, `price` (float), `colors` (list), `brand` (str or None), `platform`.
+- **When it has nothing:** returns `[]`, never None and never an exception. The loop branches on this.
 
 ### `suggest_outfit`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Asks the model for one or two outfits built around the item.
+- **Inputs:** `new_item` (dict), one listing from `search_listings`. `wardrobe` (dict) with an `items` list, which may be empty.
+- **Returns:** `str`, non-empty, under about 120 words. Each outfit names at least two wardrobe pieces by their exact `name`. Empty fields (brand None, missing notes) are left out of the prompt.
+- **When it has nothing:** with an empty wardrobe, it asks for general styling ideas using common pieces instead. If the model sends back nothing, it returns a one-line fallback suggestion, never `""`.
 
 ### `create_fit_card`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Asks the model for a first-person caption someone would post about the find.
+- **Inputs:** `outfit` (str), the output of `suggest_outfit`. `new_item` (dict), the same listing.
+- **Returns:** `str`, 2 to 4 sentences, under 60 words, no hashtags. It mentions the item, the price written as `$18`, and the platform, once each. A brand is only mentioned if the listing has one; 32 of 40 don't.
+- **When it has nothing:** if `outfit` is empty or whitespace, it returns "Can't write a fit card: there's no outfit suggestion for this item yet." and doesn't call the model.
 
 ---
 
