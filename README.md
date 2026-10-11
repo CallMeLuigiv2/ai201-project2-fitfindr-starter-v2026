@@ -41,7 +41,11 @@
 
 <!-- Three or four sentences: what a user asks for, and what they get back. -->
 
-
+FitFindr is for someone shopping secondhand. They type what they want in plain
+words, like `vintage graphic tee under $30`. It searches 40 thrift listings,
+picks the best match, suggests outfits using clothes they already own, and
+writes a short caption they could post. If nothing matches, it stops and says
+which part of the search to change: the words, the size, or the price.
 
 ---
 
@@ -93,13 +97,21 @@
      The grader checks your code against what you claim here, so the file and
      function have to be real. -->
 
-**Branch rule:**
+**Branch rule:** If `search_listings` returns an empty list, put a message in
+`session["error"]` naming which filters (words, size, price) ruled everything
+out, and stop without calling `suggest_outfit`. Otherwise take the first result
+as `session["selected_item"]` and go to `suggest_outfit`, then `create_fit_card`.
 
-**Where it lives:** `agent.py::run_agent`
+**Where it lives:** `agent.py::run_agent`. The stop message is built by
+`agent.py::_why_empty`.
 
-**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+**How the query is parsed:** regex, in `agent.py::_parse_query`. "under $30" or
+"$30" becomes `max_price`, "size M" becomes `size`, and the leftover words minus
+filler become `description`.
 
-**What moves through the session:** <!-- which fields, in what order -->
+**What moves through the session:** `query` → `parsed` → `search_results` →
+`selected_item` (always `search_results[0]`) → `outfit_suggestion` → `fit_card`.
+On the empty path, `error` is set and the last three stay `None`.
 
 ---
 
@@ -113,25 +125,36 @@
 **One full query**
 
 ```
-$ python app.py ask '...'
+$ python app.py ask 'vintage graphic tee under $30'
 
+  Found:    Vintage Band Tee — Faded Grey — $19.0 on depop
+
+  Outfit:   Hey friend! That faded grey band tee is a thrift store holy grail. Here are two ways to style it using pieces you already own.
+
+For an effortless grunge look, tuck the tee into your baggy straight-leg jeans, dark wash. Cinch your waist with the brown leather belt, and finish the outfit with your black combat boots and black crossbody bag. It is total 90s off-duty cool.
+
+If you want to lean into streetwear, layer the tee over your white ribbed tank top so the white hem peeks out at the bottom. Pair it with your wide-leg khaki trousers, throw on your black cropped zip hoodie unzipped over top, and step into your chunky white sneakers. Happy thrifting!
+
+  Fit card: Scored this perfectly faded vintage band tee for just $19 and it is peak grunge streetwear. The charcoal wash has the best lived-in feel. Find it live on my depop right now!
 ```
 
 **The three tools, tested one at a time**
 
 ```
-$ python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
-
+$ python -c "from tools import search_listings; print([(x['title'], x['size'], x['price']) for x in search_listings('graphic tee', max_price=30)])"
+[('Graphic Tee — 2003 Tour Bootleg Style', 'L', 24.0), ('Y2K Baby Tee — Butterfly Print', 'S/M', 18.0), ('Vintage Band Tee — Faded Grey', 'L', 19.0), ('Vintage Graphic Hoodie — Faded Black', 'L', 26.0)]
 ```
 
 ```
-$ python -c "from tools import suggest_outfit; ..."
+$ python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
+For an easy everyday look, pair your vintage Levi's with the white ribbed tank top tucked in. Add the brown leather belt to define the waist and finish with your chunky white sneakers for a classic, effortless streetwear vibe.
 
+For cooler weather, try a relaxed streetwear look by layering the oversized grey crewneck sweatshirt right over the jeans. Slip on your black combat boots and toss on the black crossbody bag to keep your hands free while you hunt for more thrift treasures.
 ```
 
 ```
-$ python -c "from tools import create_fit_card; ..."
-
+$ python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
+Scored these vintage Levi's 501 jeans for just $38 and I am obsessed. The medium wash indigo denim has the ultimate casual streetwear vibe. I am just wearing them with fresh white sneakers for an effortless look I found on depop.
 ```
 
 ---
@@ -145,17 +168,29 @@ $ python -c "from tools import create_fit_card; ..."
      "I gave Claude my search_listings spec. It returned None on no match
      instead of an empty list, so I changed it" is the level we want. -->
 
+I had claude write the code for tools.py and agent.py after, long discussions 
+of reading the repo, discussing some things that could be found through the examples,
+what to wathc out for and probe. this allowed us to plan affectively. i told it my intentions 
+and it helped me draft the criteria and code. this made the planning for this assignment alot longer
+than intended but made the iteration fast when things were set in place. hence the quick commits. 
+
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* which listing fields `search_listings` should match
+  keywords against. My plan was category and style_tags only.
+- *What came back:* "jacket" isn't in any category or style tag, only in
+  titles, so "denim jacket" would score denim jeans the same as the jacket.
+  Two non-tees (`lst_011`, `lst_017`) also mention "tee" in their descriptions.
+- *What I changed:* I added the title, weighted double, and kept description out.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* a size rule. Mine was an exact match, so "S" only matches "S".
+- *What came back:* 3 listings are "S/M", which my rule hides from a size-S
+  shopper, and the starter says "M" should match "S/M". A substring test is
+  wrong too, because `"s" in "us 9"` is True.
+- *What I changed:* sizes are split into pieces on spaces, `/` and
+  parentheses, and only whole pieces match. One Size always matches.
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
