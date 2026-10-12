@@ -19,7 +19,7 @@ from tools import (
     size_matches,
     suggest_outfit,
 )
-from generate import ModelUnavailable  # noqa: F401 — handled in unit 4
+from generate import ModelUnavailable
 from mcp_client import call_tool
 from utils.data_loader import load_listings
 
@@ -149,6 +149,14 @@ def _why_empty(parsed: dict) -> str:
     return f"No listings matched {asked}. What to change:\n    - " + "\n    - ".join(problems)
 
 
+def _search_args(parsed: dict) -> str:
+    """The parsed query as one trace line. A dict would print as its keys only."""
+    return (
+        f"description={parsed['description']!r}, size={parsed['size']!r}, "
+        f"max_price={parsed['max_price']!r}"
+    )
+
+
 # ── planning loop ─────────────────────────────────────────────────────────────
 
 def run_agent(query: str, wardrobe: dict) -> dict:
@@ -163,14 +171,17 @@ def run_agent(query: str, wardrobe: dict) -> dict:
 
     Returns:
         The session dict. **Check session["error"] first** — if it isn't None,
-        the run ended early and the later fields are still None.
+        the run ended early and every field after the step that stopped it is
+        still None.
 
     Each time round the loop runs one tool, then picks the next one from what
     that tool returned. An empty search is the branch: the loop stops with a
-    message instead of calling suggest_outfit with nothing.
+    message instead of calling suggest_outfit with nothing. A model that can't
+    be reached stops it too, with the item that was found still in the message.
     """
     session = new_session(query, wardrobe)
     session["parsed"] = _parse_query(query)
+    trace.step("parse_query", inputs=query, returned=_search_args(session["parsed"]))
 
     next_step = "search_listings"
     count = 0
@@ -178,33 +189,56 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         count += 1
         trace.check_iterations(count)
 
-        if next_step == "search_listings":
-            parsed = session["parsed"]
-            # Through the MCP server, not a direct call. Same function on the
-            # other side, so the list that comes back is the same.
-            session["search_results"] = call_tool("search_listings", {
-                "description": parsed["description"],
-                "size": parsed["size"],
-                "max_price": parsed["max_price"],
-            })
-            if not session["search_results"]:
-                # THE BRANCH: nothing to style, so stop before suggest_outfit.
-                session["error"] = _why_empty(parsed)
+        try:
+            if next_step == "search_listings":
+                parsed = session["parsed"]
+                # Through the MCP server, not a direct call. Same function on
+                # the other side, so the list that comes back is the same.
+                session["search_results"] = call_tool("search_listings", {
+                    "description": parsed["description"],
+                    "size": parsed["size"],
+                    "max_price": parsed["max_price"],
+                })
+                if not session["search_results"]:
+                    # THE BRANCH: nothing to style, so stop before suggest_outfit.
+                    session["error"] = _why_empty(parsed)
+                    note = "branch: empty, stopping before suggest_outfit"
+                    next_step = None
+                else:
+                    session["selected_item"] = session["search_results"][0]
+                    note = f"branch: {len(session['search_results'])} found, taking the first"
+                    next_step = "suggest_outfit"
+                trace.step("search_listings (via MCP)", inputs=_search_args(parsed),
+                           returned=session["search_results"], note=note)
+
+            elif next_step == "suggest_outfit":
+                pieces = len((session["wardrobe"] or {}).get("items") or [])
+                session["outfit_suggestion"] = suggest_outfit(
+                    session["selected_item"], session["wardrobe"]
+                )
+                note = (f"wardrobe has {pieces} items" if pieces
+                        else "wardrobe is empty, so general styling ideas")
+                trace.step("suggest_outfit", inputs=session["selected_item"],
+                           returned=session["outfit_suggestion"], note=note)
+                next_step = "create_fit_card"
+
+            elif next_step == "create_fit_card":
+                session["fit_card"] = create_fit_card(
+                    session["outfit_suggestion"], session["selected_item"]
+                )
+                trace.step("create_fit_card", inputs=session["selected_item"],
+                           returned=session["fit_card"])
                 next_step = None
-            else:
-                session["selected_item"] = session["search_results"][0]
-                next_step = "suggest_outfit"
 
-        elif next_step == "suggest_outfit":
-            session["outfit_suggestion"] = suggest_outfit(
-                session["selected_item"], session["wardrobe"]
+        except ModelUnavailable as exc:
+            # A bad key or no network. The search already worked, so say what
+            # it found rather than throwing it away with a stack trace.
+            item = session["selected_item"]
+            session["error"] = (
+                f"Found {item['title']} for {format_price(item['price'])} on "
+                f"{item['platform']}, but {next_step} couldn't reach the model. {exc}"
             )
-            next_step = "create_fit_card"
-
-        elif next_step == "create_fit_card":
-            session["fit_card"] = create_fit_card(
-                session["outfit_suggestion"], session["selected_item"]
-            )
+            trace.step(next_step, inputs=item, note="model unavailable, stopping")
             next_step = None
 
     return session
