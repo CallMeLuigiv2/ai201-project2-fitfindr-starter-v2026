@@ -231,6 +231,10 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     prompt = (
         f"{_describe_listing(new_item)}\n\n"
         f"How I'm wearing it:\n{outfit}\n\n"
+        # Without this the model sometimes wrote as the seller ("I just
+        # listed it on my depop"): 6 of 20 cards in the before run.
+        f"I bought this on {new_item['platform']} and I'm showing it off. "
+        "Write as the buyer, never as someone selling it. "
         "Write a 2 to 4 sentence caption, under 60 words, about this find. "
         f"Mention the item, the price written exactly as {price}, and "
         f"{new_item['platform']}, once each. Be specific about the vibe. "

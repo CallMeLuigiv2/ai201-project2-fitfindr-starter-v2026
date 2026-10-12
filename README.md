@@ -385,24 +385,36 @@ directly, because it can search up to three more times to build its message.
 
      `python run_eval.py --label after` -->
 
-**What I changed:**
+**What I changed:** one sentence in the prompt in `tools.py::create_fit_card`:
+"I bought this on {platform} and I'm showing it off. Write as the buyer, never
+as someone selling it."
 
-**Which failure it was meant to fix:**
+**Which failure it was meant to fix:** the seller voice from the diagnosis.
+The prompt never said who was posting, so the model sometimes guessed seller.
 
 ### Run Log — After
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. A matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. An impossible query stops before the second tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. The item search picked is the item every tool gets | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. The fit card has the facts, at caption length | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. A near miss says which filter to loosen | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
 
-**Did it help, and how do I know:**
+Full log: `results/run_2026-10-11_2116_after.md`.
 
-<!-- If it made things worse, say that. Honestly reported, that earns full
-     credit and is more interesting than one that worked. -->
+**Did it help, and how do I know:** yes. I counted seller-voice cards the same
+way in both runs, out of the 20 cards each run writes:
+
+| | Before | After |
+|---|---|---|
+| Listing lines ("I just listed it", "up on my depop now", "now live on depop") | 3 | 0 |
+| Ad openers ("Score this…") | 3 | 2 |
+| Total | 6 of 20 | 2 of 20 |
+
+Nothing else broke: all five criteria still pass 5 of 5. The cards got a bit
+longer (28 to 48 words, was 28 to 43), still under the 60-word limit.
 
 
 
