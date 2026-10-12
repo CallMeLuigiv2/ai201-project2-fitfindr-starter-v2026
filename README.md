@@ -312,19 +312,67 @@ jacket for just $42 on poshmark and your streetwear style is instantly sorted").
 **Happy path**
 
 ```
-
+$ python app.py ask 'vintage graphic tee under $30' --trace
+[1] parse_query
+      in:  vintage graphic tee under $30
+      out: description='vintage graphic tee', size=None, max_price=30.0
+[2] search_listings (via MCP)
+      in:  description='vintage graphic tee', size=None, max_price=30.0
+      out: 10 items: Vintage Band Tee — Faded Grey, Graphic Tee — 2003 Tour Bootleg Style, Vintage Graphic Hoodie — Faded Black … +7 more
+      →    branch: 10 found, taking the first
+[3] suggest_outfit
+      in:  Vintage Band Tee — Faded Grey ($19.0, depop)
+      out: Hey friend! That faded grey band tee is a thrift store holy grail. Here are two ways to style it using pieces …
+      →    wardrobe has 10 items
+[4] create_fit_card
+      in:  Vintage Band Tee — Faded Grey ($19.0, depop)
+      out: Scored this perfectly faded vintage band tee for just $19 and it is peak grunge streetwear. The charcoal wash …
 ```
 
 **Empty search**
 
 ```
+$ python app.py ask 'designer ballgown size XXS under $5' --trace
+[1] parse_query
+      in:  designer ballgown size XXS under $5
+      out: description='designer ballgown', size='XXS', max_price=5.0
+[2] search_listings (via MCP)
+      in:  description='designer ballgown', size='XXS', max_price=5.0
+      out: [] (empty)
+      →    branch: empty, stopping before suggest_outfit
 
+  No listings matched "designer ballgown" in size XXS under $5. What to change:
+    - Words: nothing matches "designer ballgown". Try an item type ("jacket", "jeans") or a style ("vintage", "y2k").
+    - Price: nothing costs $5 or less. The cheapest listing is $12.
 ```
 
-**On the MCP move:** <!-- what changed in your code, and whether anything
-behaved differently afterwards. If the rewire didn't work, say exactly where it
-broke — the error text and the last thing that worked. That earns the point in
-full. -->
+Two steps instead of four, so the branch works.
+
+**The other two failure modes**
+
+Bad API key. I ran it with one character of the key changed and the cache
+off (with the cache on, the saved answers come back and the key is never
+used). `run_agent` catches `ModelUnavailable` and stops at step 3:
+
+```
+[3] suggest_outfit
+      in:  Vintage Band Tee — Faded Grey ($19.0, depop)
+      →    model unavailable, stopping
+
+  Found Vintage Band Tee — Faded Grey for $19 on depop, but suggest_outfit couldn't reach the model. The model rejected your API key. Check GEMINI_API_KEY in your .env file, or create a fresh key at aistudio.google.com.
+```
+
+Empty wardrobe. `python app.py ask 'denim jacket under $50' --empty-wardrobe --trace`
+runs all four steps, and step 3 says `wardrobe is empty, so general styling
+ideas`. The outfit uses common pieces like sweatpants and a white baby tee,
+not clothes the user supposedly owns.
+
+**On the MCP move:** `search_listings` is now registered in `mcp_server.py`, and
+`run_agent` calls it through `mcp_client.call_tool` instead of directly. Nothing
+behaved differently. For a match, a size filter and an empty search, the list
+from MCP was equal to the direct call's. It is slower: every call starts the
+server, about 1 to 2 seconds. `_why_empty` still calls `search_listings`
+directly, because it can search up to three more times to build its message.
 
 
 
