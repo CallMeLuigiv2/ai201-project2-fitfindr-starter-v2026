@@ -371,7 +371,7 @@ not clothes the user supposedly owns.
 `run_agent` calls it through `mcp_client.call_tool` instead of directly. Nothing
 behaved differently. For a match, a size filter and an empty search, the list
 from MCP was equal to the direct call's. It is slower: every call starts the
-server, about 1 to 2 seconds. `_why_empty` still calls `search_listings`
+server, about 0.7 seconds against half a millisecond direct. `_why_empty` still calls `search_listings`
 directly, because it can search up to three more times to build its message.
 
 
@@ -425,6 +425,36 @@ longer (28 to 48 words, was 28 to 43), still under the 60-word limit.
 <!-- For each criterion still missed: what you'd do, and why you stopped where
      you did. "I ran out of time" is fine if it's true. Pretending nothing is
      left is not. -->
+
+No criterion is missed, but three things are still wrong.
+
+1. **2 of 20 fit cards still open like an ad** ("Score this 90s floral silk
+   slip dress on depop for only $30."). The rest of each card is the buyer
+   talking, but the first line isn't.
+   *How I'd fix it:* tell the prompt to open in first person ("I scored…",
+   "Just found…") and never with "Score this". *Why I stopped:* the milestone
+   is one change, measured, and the buyer sentence already took it from 6 to 2.
+
+2. **My criteria never checked who is talking.** That's why all five passed
+   while 6 cards sounded like a seller. I only found it by reading the cards.
+   *How I'd fix it:* add a criterion like "no fit card is written as the
+   seller, in 5 of 5 tries" and count it every run.
+
+3. **One Tool Inventory promise breaks.** `suggest_outfit` is supposed to stay
+   under about 120 words, but 2 of 20 outfits went over in both runs. (Its
+   other promise holds: every outfit with a wardrobe named at least two pieces
+   by their exact name.) One fit card in each run also came back all lowercase.
+   *How I'd fix it:* check the word count in the tool and ask again if it's
+   too long, and add both to the criteria so they get counted.
+
+4. **The fix and the MCP move each cost a little.** Fit cards got about 3 words
+   longer on average (36 to 39, still under 60), and the after run used 11,110
+   prompt tokens against 10,609 before. At temperature 0.9 the length change
+   could be noise. Search got slower: about 0.7 seconds through MCP (1.2 the
+   first time) against half a millisecond as a direct call, because every call
+   starts the server. That's small next to the model calls, but every run pays it.
+   *How I'd fix it:* keep one MCP connection open for the whole session instead
+   of starting the server for each call.
 
 
 
