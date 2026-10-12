@@ -35,18 +35,31 @@ SCENARIOS = [
         "wardrobe": "empty",
         "criterion": None,
     },
-    # TODO: add what your criteria 3, 4 and 5 need.
-    #
-    # Set "criterion" to the number in criteria.md that the scenario tests.
-    # "criterion": None means a diagnostic run — useful to have, but it isn't
-    # one of your five, and run_eval.py marks it as such in the table.
-    #
-    # For a state criterion, any normal query works — what you're checking is
-    # what ends up in the session, not what the user typed.
-    #
-    # For a fit-card criterion, you probably want the SAME query listed more
-    # than once, or several different items, depending on what your criterion
-    # actually says.
+    {
+        # A different item from criterion 1, so the hand-off is checked on
+        # more than one listing. Search returns 4; the track jacket is first.
+        # Criterion 3.
+        "name": "the picked item is the one every tool gets",
+        "query": "90s track jacket in size M",
+        "wardrobe": "example",
+        "criterion": 3,
+    },
+    {
+        # The slip dress has no brand, so a card that says "None" shows up
+        # here. Price $30, platform depop. Criterion 4.
+        "name": "fit card has price, platform, length, no None",
+        "query": "silk slip dress in midi length under $40",
+        "wardrobe": "example",
+        "criterion": 4,
+    },
+    {
+        # Graphic tees exist but the cheapest is $18, so only the price
+        # filter empties it. Criterion 5.
+        "name": "near miss names the price to change",
+        "query": "graphic tee under $15",
+        "wardrobe": "example",
+        "criterion": 5,
+    },
 ]
 
 WARDROBES = ("example", "empty")
