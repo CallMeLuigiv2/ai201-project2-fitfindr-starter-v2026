@@ -212,18 +212,43 @@ than intended but made the iteration fast when things were set in place. hence t
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. A matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. An impossible query stops before the second tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. The item search picked is the item every tool gets | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. The fit card has the facts, at caption length | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. A near miss says which filter to loosen | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+
+Full log: `results/run_2026-10-11_2049_before.md`. The empty-wardrobe run is
+in there too as a diagnostic. It finished 5 of 5 with general styling ideas.
 
 **Real output from one try**, pasted as text, naming the file and function
 that produced it:
 
-```
+Criterion 1, try 4. Run by `run_eval.py::main`, loop in `agent.py::run_agent`,
+card from `tools.py::create_fit_card`.
 
 ```
+[1] parse_query
+      in:  vintage graphic tee under $30
+      out: description='vintage graphic tee', size=None, max_price=30.0
+[2] search_listings (via MCP)
+      in:  description='vintage graphic tee', size=None, max_price=30.0
+      out: 10 items: Vintage Band Tee — Faded Grey, Graphic Tee — 2003 Tour Bootleg Style, Vintage Graphic Hoodie — Faded Black … +7 more
+      →    branch: 10 found, taking the first
+[3] suggest_outfit
+      in:  Vintage Band Tee — Faded Grey ($19.0, depop)
+      out: Hey thrift friend! For an effortless grunge look, tuck your vintage band tee into the baggy straight-leg jeans…
+      →    wardrobe has 10 items
+[4] create_fit_card
+      in:  Vintage Band Tee — Faded Grey ($19.0, depop)
+      out: Scored this perfectly faded grey vintage band tee for just $19. It has that ultimate grunge feel and I just li…
+
+Fit card:
+Scored this perfectly faded grey vintage band tee for just $19. It has that ultimate grunge feel and I just listed it on my depop. Grab it before it is gone!
+```
+
+It passes criterion 1, but read the card: it's written by someone selling the
+tee, not someone who bought it. More on that below.
 
 ---
 
@@ -247,13 +272,26 @@ that produced it:
 
 | # | Criterion | Target | Verdict | How I decided |
 |---|---|---|---|---|
-| 1 |  |  |  |  |
-| 2 |  |  |  |  |
-| 3 |  |  |  |  |
-| 4 |  |  |  |  |
-| 5 |  |  |  |  |
+| 1 | Matching query completes | 4 of 5 | MET (5/5) | Every trace reached step 4, `create_fit_card`, and every session had a fit card. |
+| 2 | Impossible query stops early | 5 of 5 | MET (5/5) | Every trace stopped at step 2 with "branch: empty". `suggest_outfit` never ran, and the message said to change the words and the price. |
+| 3 | Picked item = item every tool gets | 5 of 5 | MET (5/5) | In every try the first search result, `selected_item`, and both tools' `in:` lines were the 90s Track Jacket at $45.0. |
+| 4 | Fit card facts and length | 4 of 5 | MET (5/5) | All five slip dress cards had "$30" and "depop", were 31 to 41 words, and never said "None". |
+| 5 | Near miss names the filter | 5 of 5 | MET (5/5) | Every try stopped at step 2 and said the cheapest graphic tee is $18. |
 
 **Diagnoses**
+
+No criterion missed. But reading the cards turned up a problem none of them
+check: **6 of 20 fit cards are written like the seller, not the buyer.** "I just
+listed it on my depop. Grab it before it is gone!" Three were in the graphic
+tee row and three in the empty-wardrobe row ("Score this vintage Wrangler denim
+jacket for just $42 on poshmark and your streetwear style is instantly sorted"). The track jacket and slip dress cards were fine.
+
+- **Where:** the model's output. Search, the loop and the session handed over
+  the right item every time (criterion 3 shows it).
+- **Why:** the prompt in `tools.py::create_fit_card` gives the model the price
+  and the platform and says to mention both, but never says the person posting
+  bought the item. Depop and Poshmark are apps people sell on, so an item, a
+  price and "on depop" reads like a listing, and the model sometimes writes one.
 
 
 
